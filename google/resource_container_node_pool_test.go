@@ -17,7 +17,13 @@ func TestAccContainerNodePool_basic(t *testing.T) {
 	nodepoolConfig := SomeGoogleContainerNodePool(clusterConfig).
 		WithAttribute("name", name).
 		WithAttribute("zone", zone).
-		WithAttribute("initial_node_count", 2)
+		WithAttribute("initial_node_count", 2).
+		WithAttribute("node_config", NewNestedConfig().
+			WithAttribute("machine_type", "n1-highmem-4").
+			WithAttribute("labels", NewNestedConfig().
+				WithAttribute("my_label", "my_label_value").
+				WithAttribute("my_other_label", "my_other_label_value")).
+			WithAttribute("tags", "my_tag", "my_other_tag"))
 
 	var nodePool container.NodePool
 
@@ -31,6 +37,10 @@ func TestAccContainerNodePool_basic(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckContainerNodePoolExists(zone, clusterConfig.Name(), name, &nodePool),
 					testAccCheckContainerNodePoolHasInitialNodeCount(&nodePool, 2),
+					testAccCheckContainerNodePoolHasLabel(&nodePool, "my_label", "my_label_value"),
+					testAccCheckContainerNodePoolHasLabel(&nodePool, "my_other_label", "my_other_label_value"),
+					testAccCheckContainerNodePoolHasTags(&nodePool, "my_tag", "my_other_tag"),
+					testAccCheckContainerNodePoolHasMachineType(&nodePool, "n1-highmem-4"),
 				),
 			},
 		},
@@ -97,6 +107,58 @@ func testAccCheckContainerNodePoolHasInitialNodeCount(nodePool *container.NodePo
 		if nodePool.InitialNodeCount != count {
 			return fmt.Errorf("Expected initial_node_count %d but found %d", count, nodePool.InitialNodeCount)
 		}
+		return nil
+	}
+}
+
+func testAccCheckContainerNodePoolHasLabel(nodePool *container.NodePool, key, value string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		v, ok := nodePool.Config.Labels[key]
+		if !ok {
+			return fmt.Errorf("Label %s not found", key)
+		}
+
+		if v != value {
+			return fmt.Errorf("Label key '%s' has incorrect value; expected '%s', found '%s'", key, value, v)
+		}
+		return nil
+	}
+}
+
+func testAccCheckContainerNodePoolHasMachineType(nodePool *container.NodePool, machineType string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		if nodePool.Config.MachineType != machineType {
+			return fmt.Errorf("Expected machine type '%s', found '%s'", machineType, nodePool.Config.MachineType)
+		}
+
+		return nil
+	}
+}
+
+func testAccCheckContainerNodePoolHasTags(nodePool *container.NodePool, tags ...string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		// Perform simple set difference
+		tagsNeeded := map[string]interface{}{}
+		for _, x := range tags {
+			tagsNeeded[x] = struct{}{}
+		}
+
+		for _, x := range nodePool.Config.Tags {
+			delete(tagsNeeded, x)
+		}
+
+		if len(tagsNeeded) > 0 {
+			// Convert to array for pretty print
+			missing := make([]string, len(tagsNeeded))
+			idx := 0
+			for key := range tagsNeeded {
+				missing[idx] = key
+				idx++
+			}
+
+			return fmt.Errorf("Tags not found: %v", missing)
+		}
+
 		return nil
 	}
 }

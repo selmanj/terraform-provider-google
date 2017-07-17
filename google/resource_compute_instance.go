@@ -809,7 +809,7 @@ func resourceComputeInstanceCreate(d *schema.ResourceData, meta interface{}) err
 		Name:              d.Get("name").(string),
 		NetworkInterfaces: networkInterfaces,
 		Tags:              resourceInstanceTags(d),
-		Labels:            resourceInstanceLabels(d),
+		Labels:            ResourceLabels(d),
 		ServiceAccounts:   serviceAccounts,
 		Scheduling:        scheduling,
 	}
@@ -1136,7 +1136,7 @@ func resourceComputeInstanceUpdate(d *schema.ResourceData, meta interface{}) err
 	}
 
 	if d.HasChange("labels") {
-		labels := resourceInstanceLabels(d)
+		labels := ResourceLabels(d)
 		labelFingerprint := d.Get("label_fingerprint").(string)
 		req := compute.InstancesSetLabelsRequest{Labels: labels, LabelFingerprint: labelFingerprint}
 
@@ -1301,17 +1301,6 @@ func resourceInstanceMetadata(d *schema.ResourceData) (*compute.Metadata, error)
 	}
 
 	return m, nil
-}
-
-func resourceInstanceLabels(d *schema.ResourceData) map[string]string {
-	labels := map[string]string{}
-	if v, ok := d.GetOk("labels"); ok {
-		labelMap := v.(map[string]interface{})
-		for k, v := range labelMap {
-			labels[k] = v.(string)
-		}
-	}
-	return labels
 }
 
 func resourceInstanceTags(d *schema.ResourceData) *compute.Tags {

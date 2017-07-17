@@ -3,6 +3,7 @@ package google
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 )
 
 // ConfigBuilder is a helper class for generating Terraform config strings for use in tests.
@@ -45,7 +46,17 @@ func (rb *ConfigBuilder) WithResourceType(typ string) *ConfigBuilder {
 
 // WithAttribute sets an attribute on the resource. Anything that implements the Stringer interface or is a primitive
 // can be used here. See NewNestedConfig() as well for an example on how to embed an additional map structure.
-func (rb *ConfigBuilder) WithAttribute(key string, obj interface{}) *ConfigBuilder {
+func (rb *ConfigBuilder) WithAttribute(key string, obj interface{}, objs ...interface{}) *ConfigBuilder {
+	// Check if the value is to be treated as an array
+	if objs != nil {
+		arr := make([]interface{}, len(objs)+1)
+		arr[0] = obj
+		for idx := range objs {
+			arr[idx+1] = objs[idx]
+		}
+
+		return rb.WithAttribute(key, arr)
+	}
 	rb.Attributes[key] = obj
 	return rb
 }
@@ -98,21 +109,45 @@ func (rb ConfigBuilder) StringWithIndent(indent, indentLen int, embedded bool) s
 	for k, v := range rb.Attributes {
 		buf.WriteString(spacesOfLength(indent + indentLen))
 		buf.WriteString(fmt.Sprintf("%s ", k))
-		switch v.(type) {
-		case int:
-			buf.WriteString(fmt.Sprintf("= %d", v))
-		case string:
-			buf.WriteString(fmt.Sprintf("= \"%s\"", v))
-		case StringWithIndenter:
-			buf.WriteString("" + v.(StringWithIndenter).StringWithIndent(indent+indentLen, indentLen, true))
-		case fmt.Stringer:
-			buf.WriteString("= " + v.(fmt.Stringer).String())
+
+		// Only emit a '= ' if the type is anything but a nested ConfigBuilder
+		confBuilderType := reflect.TypeOf((*ConfigBuilder)(nil)).Elem()
+		if reflect.TypeOf(v) != confBuilderType {
+			buf.WriteString("= ")
 		}
+		buf.WriteString(asSimpleYAML(v, indent, indentLen))
 		buf.WriteString("\n")
 	}
 
 	buf.WriteString(spacesOfLength(indent) + "}\n")
 	return buf.String()
+}
+
+func asSimpleYAML(v interface{}, indent, indentLen int) string {
+	switch v.(type) {
+	case int:
+		return fmt.Sprintf("%d", v)
+	case string:
+		return fmt.Sprintf("\"%s\"", v)
+	case []interface{}:
+		var buf bytes.Buffer
+
+		buf.WriteString(fmt.Sprintf("["))
+		for idx, x := range v.([]interface{}) {
+			if idx != 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(asSimpleYAML(x, indent, indentLen))
+		}
+		buf.WriteString("]")
+		return buf.String()
+	case StringWithIndenter:
+		return v.(StringWithIndenter).StringWithIndent(indent+indentLen, indentLen, true)
+	case fmt.Stringer:
+		return v.(fmt.Stringer).String()
+	default:
+		return "**UNKNOWN**"
+	}
 }
 
 // spacesOfLength is a helper function for generating a string consisting of just spaces.

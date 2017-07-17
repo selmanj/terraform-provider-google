@@ -55,6 +55,87 @@ func resourceContainerNodePool() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+
+			"node_config": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				ForceNew: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"machine_type": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+							ForceNew: true,
+						},
+
+						"disk_size_gb": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							Computed:     true,
+							ForceNew:     true,
+							ValidateFunc: IntAtLeast(10),
+						},
+
+						"local_ssd_count": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							Computed:     true,
+							ForceNew:     true,
+							ValidateFunc: IntAtLeast(0),
+						},
+
+						"oauth_scopes": {
+							Type:     schema.TypeList,
+							Optional: true,
+							Computed: true,
+							ForceNew: true,
+							Elem: &schema.Schema{
+								Type: schema.TypeString,
+								StateFunc: func(v interface{}) string {
+									return canonicalizeServiceScope(v.(string))
+								},
+							},
+						},
+
+						"service_account": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+							ForceNew: true,
+						},
+
+						"metadata": {
+							Type:     schema.TypeMap,
+							Optional: true,
+							ForceNew: true,
+							Elem:     schema.TypeString,
+						},
+
+						"image_type": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+							ForceNew: true,
+						},
+
+						"labels": {
+							Type:     schema.TypeMap,
+							Optional: true,
+							ForceNew: true,
+							Elem:     schema.TypeString,
+						},
+
+						"tags": {
+							Type:     schema.TypeList,
+							Optional: true,
+							ForceNew: true,
+							Elem:     &schema.Schema{Type: schema.TypeString},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -80,9 +161,18 @@ func resourceContainerNodePoolCreate(d *schema.ResourceData, meta interface{}) e
 		name = resource.UniqueId()
 	}
 
+	var nodeConfig *container.NodeConfig
+	if _, ok := d.GetOk("node_config"); ok {
+		nodeConfig, err = expandClusterNodeConfig(d)
+		if err != nil {
+			return err
+		}
+	}
+
 	nodePool := &container.NodePool{
 		Name:             name,
 		InitialNodeCount: int64(nodeCount),
+		Config:           nodeConfig,
 	}
 
 	req := &container.CreateNodePoolRequest{
@@ -129,6 +219,9 @@ func resourceContainerNodePoolRead(d *schema.ResourceData, meta interface{}) err
 
 	d.Set("name", nodePool.Name)
 	d.Set("initial_node_count", nodePool.InitialNodeCount)
+	if len(nodePool.Config.Labels) > 0 {
+		d.Set("labels", nodePool.Config.Labels)
+	}
 
 	return nil
 }
@@ -188,4 +281,17 @@ func resourceContainerNodePoolExists(d *schema.ResourceData, meta interface{}) (
 		return true, err
 	}
 	return true, nil
+}
+
+func resourceTags(d *schema.ResourceData) []string {
+	tags := make([]string, 0)
+	ts, ok := d.GetOk("tags")
+	if !ok {
+		return tags
+	}
+	for _, v := range ts.(*schema.Set).List() {
+		tags = append(tags, v.(string))
+	}
+	return tags
+
 }
