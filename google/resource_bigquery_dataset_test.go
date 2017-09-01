@@ -7,9 +7,11 @@ import (
 	"github.com/hashicorp/terraform/helper/acctest"
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/terraform"
+	"google.golang.org/api/bigquery/v2"
 )
 
 func TestAccBigQueryDataset_basic(t *testing.T) {
+	var dataset bigquery.Dataset
 	datasetID := fmt.Sprintf("tf_test_%s", acctest.RandString(10))
 
 	resource.Test(t, resource.TestCase{
@@ -21,7 +23,8 @@ func TestAccBigQueryDataset_basic(t *testing.T) {
 				Config: testAccBigQueryDataset(datasetID),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckBigQueryDatasetExists(
-						"google_bigquery_dataset.test"),
+						"google_bigquery_dataset.test", &dataset),
+					TestAccCheckStructHasLabel(&dataset, "env", "foo"),
 				),
 			},
 
@@ -29,7 +32,7 @@ func TestAccBigQueryDataset_basic(t *testing.T) {
 				Config: testAccBigQueryDatasetUpdated(datasetID),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckBigQueryDatasetExists(
-						"google_bigquery_dataset.test"),
+						"google_bigquery_dataset.test", &dataset),
 				),
 			},
 		},
@@ -53,7 +56,7 @@ func testAccCheckBigQueryDatasetDestroy(s *terraform.State) error {
 	return nil
 }
 
-func testAccCheckBigQueryDatasetExists(n string) resource.TestCheckFunc {
+func testAccCheckBigQueryDatasetExists(n string, dataset *bigquery.Dataset) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[n]
 		if !ok {
@@ -74,6 +77,8 @@ func testAccCheckBigQueryDatasetExists(n string) resource.TestCheckFunc {
 		if found.Id != rs.Primary.ID {
 			return fmt.Errorf("Dataset not found")
 		}
+
+		dataset = found
 
 		return nil
 	}
