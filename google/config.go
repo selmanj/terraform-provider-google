@@ -24,6 +24,7 @@ import (
 	"google.golang.org/api/container/v1"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/iam/v1"
+	cloudlogging "google.golang.org/api/logging/v2"
 	"google.golang.org/api/pubsub/v1"
 	"google.golang.org/api/runtimeconfig/v1beta1"
 	"google.golang.org/api/servicemanagement/v1"
@@ -45,6 +46,7 @@ type Config struct {
 	clientComputeBeta     *computeBeta.Service
 	clientContainer       *container.Service
 	clientDns             *dns.Service
+	clientLogging         *cloudlogging.Service
 	clientPubsub          *pubsub.Service
 	clientResourceManager *cloudresourcemanager.Service
 	clientRuntimeconfig   *runtimeconfig.Service
@@ -150,6 +152,13 @@ func (c *Config) loadAndValidate() error {
 		return err
 	}
 	c.clientDns.UserAgent = userAgent
+
+	log.Printf("[INFO] Instantiating Google Stackdriver Logging client...")
+	c.clientLogging, err = cloudlogging.New(client)
+	if err != nil {
+		return err
+	}
+	c.clientLogging.UserAgent = userAgent
 
 	log.Printf("[INFO] Instantiating Google Storage Client...")
 	c.clientStorage, err = storage.New(client)
