@@ -15,6 +15,9 @@ func resourceLoggingProjectSink() *schema.Resource {
 		Read:   resourceLoggingProjectSinkRead,
 		Delete: resourceLoggingProjectSinkDelete,
 		Update: resourceLoggingProjectSinkUpdate,
+		Importer: &schema.ResourceImporter{
+			State: resourceLoggingProjectImportState,
+		},
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -132,6 +135,20 @@ func resourceLoggingProjectSinkUpdate(d *schema.ResourceData, meta interface{}) 
 	}
 
 	return resourceLoggingProjectSinkRead(d, meta)
+}
+
+func resourceLoggingProjectImportState(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	//config := meta.(*Config)
+
+	// TODO Support importing via just the name, or the name/project
+	addressId, err := parseLoggingSinkId(d.Id())
+	if err != nil {
+		return nil, err
+	}
+
+	d.SetId(addressId.canonicalId())
+
+	return []*schema.ResourceData{d}, nil
 }
 
 func resourceLoggingProjectSinkDelete(d *schema.ResourceData, meta interface{}) error {

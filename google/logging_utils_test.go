@@ -4,13 +4,29 @@ import "testing"
 
 func TestParseLoggingSinkId(t *testing.T) {
 	tests := []struct {
-		val         string
-		out         *LoggingSinkId
-		errExpected bool
+		val             string
+		defResourceType string
+		defResourceId   string
+		out             *LoggingSinkId
+		errExpected     bool
 	}{
-		{"projects/my-project/sinks/my-sink", &LoggingSinkId{"projects", "my-project", "my-sink"}, false},
-		{"folders/foofolder/sinks/woo", &LoggingSinkId{"folders", "foofolder", "woo"}, false},
-		{"kitchens/the-big-one/sinks/second-from-the-left", nil, true},
+		{
+			val:             "projects/my-project/sinks/my-sink",
+			defResourceType: "projects",
+			defResourceId:   "my-project",
+			out:             &LoggingSinkId{"projects", "my-project", "my-sink"},
+			errExpected:     false,
+		}, {
+			val:             "folders/foofolder/sinks/woo",
+			defResourceType: "invalidResourceType", // ignored as its in the val
+			defResourceId:   "InvalidResourceId",   // ignored as its in the val
+			out:             &LoggingSinkId{"folders", "foofolder", "woo"},
+			errExpected:     false},
+		{
+			val: "kitchens/the-big-one/sinks/second-from-the-left",
+			nil, true},
+		// TODO add more tests!!!!
+
 	}
 
 	for _, test := range tests {

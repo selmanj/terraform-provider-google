@@ -3,6 +3,7 @@ package google
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // loggingSinkResourceTypes contains all the possible Stackdriver Logging resource types. Used to parse ids safely.
@@ -33,16 +34,45 @@ func (l LoggingSinkId) parent() string {
 	return fmt.Sprintf("%s/%s", l.resourceType, l.resourceId)
 }
 
-// parseLoggingSinkId parses a canonical id into a LoggingSinkId, or returns an error on failure.
-func parseLoggingSinkId(id string) (*LoggingSinkId, error) {
-	parts := loggingSinkIdRegex.FindStringSubmatch(id)
-	if parts == nil {
-		return nil, fmt.Errorf("unable to parse logging sink id %#v", id)
+// parseLoggingSinkId parses an id into a LoggingSinkId, or returns an error on failure. You can provide an id in four
+// different patterns:
+//
+// * [SINK_NAME]
+// * sinks/[SINK_NAME]
+// * [RESOURCE_NAME]/sinks/[SINK_NAME]
+// * [RESOURCE_TYPE]/[RESOURCE_NAME]/sinks/[SINK_NAME]
+//
+// You must provide a default resourceType and resourceName to use if either are not found in the id.
+func parseLoggingSinkId(id, defaultResourceName, defaultResourceType string) (*LoggingSinkId, error) {
+	if id == "" {
+		return nil, fmt.Errorf("Id \"\" is not a valid logging id")
 	}
+
+	// Set resourceType + resourceId to default values; we will overwrite them if necessary
+	resourceType := defaultResourceType
+	resourceId := defaultResourceName
+
+	parts := strings.Split(id, "/")
+	// SinkName is always the last element in the parts list
+	sinkName := parts[len(parts)-1]
+	// Verify that the second to last element is 'sinks'
+	if len(parts) >= 2 && parts[len(parts)-2] != "sinks" {
+		return nil, fmt.Errorf("Invalid Logging sink id: %s", id)
+	}
+	if len(parts) >= 3 {
+		resourceId = parts[len(parts)-3]
+	}
+	if len(parts) == 4 {
+		resourceType = parts[len(parts)-4]
+	}
+	if len(parts) > 4 {
+		return nil, fmt.Errorf("Invalid Logging sink id: %s", id)
+	}
+
 	// If our resourceType is not a valid logging sink resource type, complain loudly
 	validLoggingSinkResourceType := false
 	for _, v := range loggingSinkResourceTypes {
-		if v == parts[1] {
+		if v == resourceType {
 			validLoggingSinkResourceType = true
 			break
 		}
@@ -53,8 +83,8 @@ func parseLoggingSinkId(id string) (*LoggingSinkId, error) {
 			loggingSinkResourceTypes)
 	}
 	return &LoggingSinkId{
-		resourceType: parts[1],
-		resourceId:   parts[2],
-		name:         parts[3],
+		resourceType: resourceType,
+		resourceId:   resourceId,
+		name:         sinkName,
 	}, nil
 }
